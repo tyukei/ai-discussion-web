@@ -1,94 +1,66 @@
 import streamlit as st
-from chatgpt import run
+from chatgpt import run  # I'm assuming chatgpt.run is your custom GPT-3 API function
 
-theme = ""
-roles= list(list())
-conservations = list(list())
-
-def get_ai(num):
-    prompt =f"""
-    Now you are {roles[num]}.
+def generate_prompt(role, history, is_init=False):
+    base_prompt = f"""
+    Now you are {role}.
     Theme is {theme}.
-    Give me opinion with two sentences as {roles[num]}, following history.
+    Give me opinion with two sentences as {role}, following history.
     ###rule
-    1. Absolutely return response for last conversation at 1st sentence. Then give your opinion.
-    2. Follow the history.
-    3. Opinion should be within 15 words.
-    ###history
-    {conservations}
     """
-    return run(roles[num], prompt)
-    
-def get_ai_init(num):
-    prompt =f"""
-    Now you are {roles[num]}.
-    Theme is {theme}.
-    Give me opinion with two sentences as {roles[num]}, following history.
-    ###rule
-    1. Opinion should be within 15 words.
-    """
-    return run(roles[num], prompt)
+    if is_init:
+        return base_prompt + "1. Opinion should be within 15 words."
+    else:
+        return base_prompt + f"""
+        1. Absolutely return response for last conversation at 1st sentence. Then give your opinion.
+        2. Follow the history.
+        3. Opinion should be within 15 words.
+        ###history
+        {history}
+        """
 
-def get_summary():
-    prompt =f"""
-    Based on the history, give me lesson in Japanese.
+def generate_debate(roles, theme):
+    history = []
+    for idx, role in enumerate(roles):
+        prompt = generate_prompt(role, history, is_init=(idx==0))
+        response = run(role, prompt)
+        history.append(response)
+        avatar = ["🧑‍💻", "🤖", "👻"][idx]
+        st.chat_message("ai", avatar=avatar).write(response)
+    return history  # Return the history for use in summary generation
+
+
+def generate_summary(history):
+    prompt = f"""
+    Based on the history, give me a lesson in Japanese.
     ###rule
     1. Lesson should be within 15 words.
     2. Answer should be in Japanese.
     ###history
-    {conservations}
+    {history}
     """
     return run("You are a creative poemer", prompt)
 
-# UI for Topic Selection (You can replace this with AI-based logic)
+# Streamlit UI
 st.title('AI議論プラットフォーム')
 st.header('テーマ選択')
 
-with st.spinner('AI is thinking...'):
-    theme = run("You are smart AI", "Give me just only theme within 5words.\n Theme:")
-    role1 = run("You are smart AI", "Give me just only one role within 2 words like lazy doctor, cold lawer \n Role:")
-    roles.append(role1)
-    role2 = run("You are smart AI", "Give me just only one role within 2 words like lazy doctor, cold lawer \n Role:")
-    roles.append(role2)
-    role3 = run("You are smart AI", "Give me just only one role within 2 words like lazy doctor, cold lawer \n Role:")
-    roles.append(role3)
+# Get initial theme and roles\
+theme = run("You are smart AI", "Give me just only theme within 5 words.\n Theme:")
+roles = [run("You are smart AI", f"Give me just only one role within 2 words like lazy doctor, cold lawer \n Role:") for _ in range(3)]
 
-# UI for Debate
 st.header('議論')
 st.write(f"選択されたテーマ: {theme}")
-st.write(f"AIのロール: {role1}, {role2}, {role3}")
+st.write(f"AIのロール: {', '.join(roles)}")
 
-# Placeholder for debate content
-debate_placeholder = st.empty()
+# Run the debate and get the history
+history = generate_debate(roles, theme)
 
-with st.spinner('AI is thinking...'):
-    role1_says = get_ai_init(0)
-    conservations.append(role1_says)
-    st.chat_message("ai",avatar="🧑‍💻").write(role1_says)
-
-
-with st.spinner('AI is thinking...'):
-    role2_says = get_ai(1)
-    conservations.append(role2_says)
-    st.chat_message("ai",avatar="🤖").write(role2_says)
-
-
-with st.spinner('AI is thinking...'):
-    role3_says = get_ai(2)
-    conservations.append(role3_says)
-    st.chat_message("ai",avatar="👻").write(role3_says)
-
-
-
-
-# UI for Generated Quote
+# Generate and display summary
 st.header('名言生成')
 st.write("議論から生まれた名言がこちらです。")
-quote_placeholder = st.empty()
-
-
-with st.spinner('AI is thinking...'):
-    sample_quote = get_summary()
-    st.write(sample_quote)
+print(history)
+summary = generate_summary(history)  # Pass the history to the summary function
+st.write(summary)
 
 st.button('再生成する')
